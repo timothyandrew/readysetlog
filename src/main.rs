@@ -25,7 +25,9 @@ async fn main() {
     }
 
     // TODO
-    // - [ ] Log all incoming requests to the command line
+    // - [x] Log all incoming requests to the command line
+    // - [ ] Highlight a given string/JSON key/query param (color codes)
+    // - [ ] Optionally pretty-print JSON bodies
     // - [ ] Display all incoming requests on a web page
     // - [ ] Allow grouping by endpoint
     // - [ ] Websockets + live updates
