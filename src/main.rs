@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
-    let port = match env::args().skip(1).next() {
+    let port = match env::args().nth(1) {
         Some(port) => port.parse::<u16>().unwrap(),
         _ => 7750,
     };

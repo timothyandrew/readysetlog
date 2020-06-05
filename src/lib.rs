@@ -24,12 +24,12 @@ pub async fn process(request: Request<Body>) -> Result<Response<Body>, Infallibl
     };
 
     if let Ok(body) = extract_body(request).await {
-        if body.trim().len() > 0 {
+        if !body.trim().is_empty() {
             println!("{} ┗━> Body: {}", timestamp, body);
         }
     };
 
-    println!("");
+    println!();
 
     Ok(Response::new("OK".into()))
 }
