@@ -10,3 +10,4 @@ edition = "2018"
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
 chrono = "0.4"
+futures = "0.3"

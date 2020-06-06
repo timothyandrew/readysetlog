@@ -3,26 +3,38 @@ use hyper::Server;
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
+use futures::future::join_all;
+use tokio::task::JoinHandle;
+use std::error::Error;
 
-#[tokio::main]
-async fn main() {
-    let port = match env::args().nth(1) {
-        Some(port) => port.parse::<u16>().unwrap(),
-        _ => 7750,
-    };
-
+fn api_server(port: u16) -> JoinHandle<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
     let make_svc =
         make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(readysetlog::process)) });
 
     let server = Server::bind(&addr).serve(make_svc);
+    
+    tokio::spawn(async move {
+        if let Err(e) = server.await {
+            eprintln!("API server error: {}", e);
+        }
+    })
+}
 
-    println!("Listening on port {} ✅", port);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let port = match env::args().nth(1) {
+        Some(port) => port.parse::<u16>().unwrap(),
+        _ => 7750,
+    };
 
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
-    }
+    println!("API server listening on port {} ✅", port);
+
+    let services = vec![ api_server(port)]; 
+    join_all(services).await;
+
+    Ok(())
 
     // TODO
     // - [x] Log all incoming requests to the command line
