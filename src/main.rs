@@ -1,25 +1,21 @@
-use hyper::service::{make_service_fn, service_fn};
-use hyper::Server;
-use std::convert::Infallible;
 use std::env;
-use std::net::SocketAddr;
-use futures::future::join_all;
-use tokio::task::JoinHandle;
 use std::error::Error;
+use std::convert::Infallible;
 
-fn api_server(port: u16) -> JoinHandle<()> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+use warp::Filter;
 
-    let make_svc =
-        make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(readysetlog::process)) });
+fn optional_raw_query_params() -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
+    warp::filters::query::raw()
+    .or(warp::any().map(String::default))
+    .unify()
+}
 
-    let server = Server::bind(&addr).serve(make_svc);
-    
-    tokio::spawn(async move {
-        if let Err(e) = server.await {
-            eprintln!("API server error: {}", e);
-        }
-    })
+fn api_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::any()
+        .and(warp::filters::path::full())
+        .and(optional_raw_query_params())
+        .and(warp::body::bytes())
+        .map(readysetlog::process)
 }
 
 #[tokio::main]
@@ -30,9 +26,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     println!("API server listening on port {} ✅", port);
-
-    let services = vec![ api_server(port)]; 
-    join_all(services).await;
+    let handle = api_server();
+    warp::serve(handle).run(([127, 0, 0, 1], port)).await;
 
     Ok(())
 
