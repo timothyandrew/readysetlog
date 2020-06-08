@@ -1,20 +1,20 @@
 use chrono::Local;
-use std::error::Error;
 use futures::{SinkExt, StreamExt};
 
-use warp::filters::path::FullPath;
-use warp::reply::Reply;
+
+
 use futures::stream::SplitSink;
-use std::io::prelude::*;
+use std::collections::{HashMap};
 use std::fs::File;
+use std::io::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::collections::{HashMap, HashSet};
 use tokio::sync::Mutex;
-use std::sync::{atomic::{AtomicUsize, Ordering}};
+use warp::filters::path::FullPath;
 use warp::filters::ws::Message;
 use warp::filters::ws::WebSocket;
 use warp::reply::html;
-use futures::sink;
+use warp::reply::Reply;
 
 static ID_GENERATOR: AtomicUsize = AtomicUsize::new(1);
 
@@ -55,7 +55,12 @@ pub async fn ws(ws: warp::ws::WebSocket, state: State) {
     (*state).remove(&ws_id);
 }
 
-pub async fn api(endpoint: FullPath, query: String, body: bytes::Bytes, state: State) -> Result<impl Reply, warp::Rejection> {
+pub async fn api(
+    endpoint: FullPath,
+    query: String,
+    body: bytes::Bytes,
+    state: State,
+) -> Result<impl Reply, warp::Rejection> {
     let mut serialized = String::new();
     let timestamp = Local::now();
 

@@ -1,9 +1,9 @@
-use futures::future::join_all;
+
+use std::collections::{HashMap};
 use std::convert::Infallible;
 use std::env;
 use std::error::Error;
 use std::sync::Arc;
-use std::collections::{HashMap, HashSet};
 use tokio::sync::Mutex;
 use warp::ws;
 
@@ -21,7 +21,9 @@ fn http_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Reject
         .map(readysetlog::web)
 }
 
-fn api_server(state: readysetlog::State) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn api_server(
+    state: readysetlog::State,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::any()
         .and(warp::filters::path::full())
         .and(optional_raw_query_params())
@@ -30,13 +32,13 @@ fn api_server(state: readysetlog::State) -> impl Filter<Extract = impl warp::Rep
         .and_then(readysetlog::api)
 }
 
-fn ws_server(state: readysetlog::State) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn ws_server(
+    state: readysetlog::State,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::any()
         .and(warp::ws())
         .and(warp::any().map(move || state.clone()))
-        .map(|ws: ws::Ws, state: readysetlog::State| 
-            ws.on_upgrade(|ws| readysetlog::ws(ws, state))
-        )
+        .map(|ws: ws::Ws, state: readysetlog::State| ws.on_upgrade(|ws| readysetlog::ws(ws, state)))
 }
 
 #[tokio::main]
