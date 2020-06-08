@@ -18,6 +18,9 @@ use warp::reply::Reply;
 
 static ID_GENERATOR: AtomicUsize = AtomicUsize::new(1);
 
+#[allow(dead_code)]
+static HTML_BODY: &str = include_str!("../html/index.html");
+
 // Can't use a `HashSet` because `SplitSink` doesn't implement `std::hash::Hash`
 pub type State = Arc<Mutex<HashMap<usize, SplitSink<WebSocket, Message>>>>;
 
@@ -26,12 +29,17 @@ fn extract_body(body: bytes::Bytes) -> String {
     String::from_utf8_lossy(body.as_ref()).into_owned()
 }
 
-// TODO: Cache this in memory
+#[cfg(debug_assertions)]
 fn web_response() -> String {
     let mut f = File::open("html/index.html").unwrap();
     let mut buffer = String::new();
     f.read_to_string(&mut buffer).unwrap();
     buffer
+}
+
+#[cfg(not(debug_assertions))]
+fn web_response() -> String {
+    HTML_BODY.to_string()
 }
 
 pub fn web() -> impl Reply {
