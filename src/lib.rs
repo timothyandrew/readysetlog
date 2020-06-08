@@ -1,41 +1,81 @@
 use chrono::Local;
-use futures::{FutureExt, StreamExt};
-use warp::Filter;
+use std::error::Error;
+use futures::{SinkExt, StreamExt};
 
 use warp::filters::path::FullPath;
 use warp::reply::Reply;
+use futures::stream::SplitSink;
+use std::io::prelude::*;
+use std::fs::File;
+use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use tokio::sync::Mutex;
+use std::sync::{atomic::{AtomicUsize, Ordering}};
+use warp::filters::ws::Message;
+use warp::filters::ws::WebSocket;
+use warp::reply::html;
+use futures::sink;
+
+static ID_GENERATOR: AtomicUsize = AtomicUsize::new(1);
+
+// Can't use a `HashSet` because `SplitSink` doesn't implement `std::hash::Hash`
+pub type State = Arc<Mutex<HashMap<usize, SplitSink<WebSocket, Message>>>>;
 
 fn extract_body(body: bytes::Bytes) -> String {
     // TODO: Avoid copying (`into_owned`)
     String::from_utf8_lossy(body.as_ref()).into_owned()
 }
 
-pub async fn process_ws(ws: warp::ws::WebSocket) {
-    println!("WS conn established!");
-
-    let (tx, rx) = ws.split();
-    if let Err(_) = rx.take(5).forward(tx).await {
-        panic!("WS connection failed!")
-    }
-
-    println!("Done!")
+// TODO: Cache this in memory
+fn web_response() -> String {
+    let mut f = File::open("html/index.html").unwrap();
+    let mut buffer = String::new();
+    f.read_to_string(&mut buffer).unwrap();
+    buffer
 }
 
-pub fn process(endpoint: FullPath, query: String, body: bytes::Bytes) -> impl Reply {
+pub fn web() -> impl Reply {
+    html(web_response())
+}
+
+pub async fn ws(ws: warp::ws::WebSocket, state: State) {
+    let (mut tx, mut rx) = ws.split();
+
+    let ws_id = ID_GENERATOR.fetch_add(1, Ordering::Relaxed);
+    tx.send(Message::text("Connected!")).await.unwrap();
+
+    {
+        let mut state = state.lock().await;
+        (*state).insert(ws_id, tx);
+    }
+
+    while let Some(_) = rx.next().await {}
+
+    let mut state = state.lock().await;
+    (*state).remove(&ws_id);
+}
+
+pub async fn api(endpoint: FullPath, query: String, body: bytes::Bytes, state: State) -> Result<impl Reply, warp::Rejection> {
+    let mut serialized = String::new();
     let timestamp = Local::now();
 
-    println!("{} {}", timestamp, endpoint.as_str());
+    serialized.push_str(&format!("{} {}\n", timestamp, endpoint.as_str()));
 
     if !query.trim().is_empty() {
-        println!("{} ┗━> Query: {}", timestamp, query);
+        serialized.push_str(&format!("{} ┗━> Query: {}\n", timestamp, query));
     }
 
     let body = extract_body(body);
     if !body.trim().is_empty() {
-        println!("{} ┗━>  Body: {}", timestamp, body);
+        serialized.push_str(&format!("{} ┗━>  Body: {}\n", timestamp, body));
     }
 
-    println!();
+    let mut state = state.lock().await;
+    for (_, tx) in (*state).iter_mut() {
+        tx.send(Message::text(serialized.as_str())).await.unwrap();
+    }
 
-    "OK!"
+    println!("{}", serialized);
+
+    Ok("OK!")
 }

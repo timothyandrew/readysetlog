@@ -2,6 +2,9 @@ use futures::future::join_all;
 use std::convert::Infallible;
 use std::env;
 use std::error::Error;
+use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use tokio::sync::Mutex;
 use warp::ws;
 
 use warp::Filter;
@@ -12,18 +15,28 @@ fn optional_raw_query_params() -> impl Filter<Extract = (String,), Error = Infal
         .unify()
 }
 
-fn api_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn http_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::get()
+        .and(warp::filters::path::end())
+        .map(readysetlog::web)
+}
+
+fn api_server(state: readysetlog::State) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::any()
         .and(warp::filters::path::full())
         .and(optional_raw_query_params())
         .and(warp::body::bytes())
-        .map(readysetlog::process)
+        .and(warp::any().map(move || state.clone()))
+        .and_then(readysetlog::api)
 }
 
-fn ws_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn ws_server(state: readysetlog::State) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::any()
         .and(warp::ws())
-        .map(|ws: ws::Ws| ws.on_upgrade(readysetlog::process_ws))
+        .and(warp::any().map(move || state.clone()))
+        .map(|ws: ws::Ws, state: readysetlog::State| 
+            ws.on_upgrade(|ws| readysetlog::ws(ws, state))
+        )
 }
 
 #[tokio::main]
@@ -33,12 +46,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         _ => 7750,
     };
 
-    println!("API server listening on port {} ✅", port);
-    println!("WS server listening on port {} ✅", port + 1);
+    println!(" API server -> :{}", port);
+    println!("HTTP server -> :{}", port + 1);
+    println!("  WS server -> :{}", port + 2);
+
+    let state: readysetlog::State = Arc::new(Mutex::new(HashMap::new()));
 
     tokio::join!(
-        warp::serve(api_server()).run(([127, 0, 0, 1], port)),
-        warp::serve(ws_server()).run(([127, 0, 0, 1], port + 1))
+        warp::serve(api_server(state.clone())).run(([127, 0, 0, 1], port)),
+        warp::serve(http_server()).run(([127, 0, 0, 1], port + 1)),
+        warp::serve(ws_server(state.clone())).run(([127, 0, 0, 1], port + 2))
     );
 
     Ok(())
