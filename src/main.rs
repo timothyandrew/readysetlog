@@ -16,9 +16,9 @@ fn optional_raw_query_params() -> impl Filter<Extract = (String,), Error = Infal
 }
 
 fn http_server() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::get()
-        .and(warp::filters::path::end())
-        .map(readysetlog::web)
+    let html = warp::get().and(warp::path::end()).map(readysetlog::html);
+    let js = warp::path("main.js").and(warp::path::end()).map(readysetlog::js);
+    html.or(js)
 }
 
 fn api_server(

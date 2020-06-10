@@ -13,13 +13,14 @@ use tokio::sync::Mutex;
 use warp::filters::path::FullPath;
 use warp::filters::ws::Message;
 use warp::filters::ws::WebSocket;
-use warp::reply::html;
 use warp::reply::Reply;
 
 static ID_GENERATOR: AtomicUsize = AtomicUsize::new(1);
 
 #[allow(dead_code)]
-static HTML_BODY: &str = include_str!("../html/index.html");
+static HTML_BODY: &str = include_str!("../dist/index.html");
+#[allow(dead_code)]
+static JS_BODY: &str = include_str!("../dist/main.js");
 
 // Can't use a `HashSet` because `SplitSink` doesn't implement `std::hash::Hash`
 pub type State = Arc<Mutex<HashMap<usize, SplitSink<WebSocket, Message>>>>;
@@ -29,21 +30,36 @@ fn extract_body(body: bytes::Bytes) -> String {
     String::from_utf8_lossy(body.as_ref()).into_owned()
 }
 
-#[cfg(debug_assertions)]
-fn web_response() -> String {
-    let mut f = File::open("html/index.html").unwrap();
+#[allow(dead_code)]
+fn read_file(path: &str) -> String {
+    let mut f = File::open(path).unwrap();
     let mut buffer = String::new();
     f.read_to_string(&mut buffer).unwrap();
     buffer
 }
 
-#[cfg(not(debug_assertions))]
-fn web_response() -> String {
-    HTML_BODY.to_string()
+fn reply_js(contents: String) -> impl Reply {
+    warp::http::Response::builder().header("Content-Type", "text/javascript").body(contents)
 }
 
-pub fn web() -> impl Reply {
-    html(web_response())
+#[cfg(debug_assertions)]
+pub fn js() -> impl Reply {
+    reply_js(read_file("dist/main.js"))
+}
+
+#[cfg(debug_assertions)]
+pub fn html() -> impl Reply {
+    warp::reply::html(read_file("dist/index.html"))
+}
+
+#[cfg(not(debug_assertions))]
+pub fn js() -> impl Reply {
+    reply_js(JS_BODY.to_string())
+}
+
+#[cfg(not(debug_assertions))]
+pub fn html() -> impl Reply {
+    warp::reply::html(HTML_BODY.to_string())
 }
 
 pub async fn ws(ws: warp::ws::WebSocket, state: State) {
