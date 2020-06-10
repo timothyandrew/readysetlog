@@ -1,0 +1,12 @@
+{
+  "name": "readysetlog",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:timothyandrew/readysetlog.git",
+  "author": "Timothy Andrew <mail@timothyandrew.net>",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "parcel": "^2.0.0-alpha.3.2"
+  }
+}
